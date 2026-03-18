@@ -40,7 +40,7 @@ Use `"all"` to include every area.
 ### Install
 
 ```bash
-git clone https://github.com/wubingx2/csrankings-mcp.git
+git clone https://github.com/xiawubing/csrankings-mcp.git
 cd csrankings-mcp
 uv sync
 ```

@@ -35,7 +35,6 @@ VENUE_TO_AREA: dict[str, str] = {
     "oakland": "sec",
     "usenixsec": "sec",
     "ndss": "sec",
-    "pets": "sec",
     # Databases
     "vldb": "mod",
     "sigmod": "mod",
@@ -110,6 +109,26 @@ VENUE_TO_AREA: dict[str, str] = {
     "sigcse": "csed",
 }
 
+# Next-tier venues: deselected by default on csrankings.org
+# These are valid venues but not included in the default ranking computation.
+NEXT_TIER_VENUES: set[str] = {
+    "kdd",          # mlmining
+    "ndss",         # sec
+    "ase",          # soft
+    "issta",        # soft
+    "icde",         # mod
+    "pods",         # mod
+    "hpca",         # arch
+    "eurosys",      # ops
+    "fast",         # ops
+    "usenixatc",    # ops
+    "eurographics", # graph
+    "icfp",         # plan
+    "oopsla",       # plan
+}
+
+DEFAULT_VENUES: set[str] = set(VENUE_TO_AREA.keys()) - NEXT_TIER_VENUES
+
 # Parent area slug → human-readable name
 AREA_TITLES: dict[str, str] = {
     # AI
@@ -159,8 +178,7 @@ ALL_AREAS: list[str] = AI_AREAS + SYSTEMS_AREAS + THEORY_AREAS + INTERDISCIPLINA
 
 # Aliases for user convenience: lowered key → list of area slugs
 _CATEGORY_ALIASES: dict[str, list[str]] = {
-    "ai": AI_AREAS,
-    "artificial intelligence": AI_AREAS,
+    "ai-all": AI_AREAS,
     "systems": SYSTEMS_AREAS,
     "sys": SYSTEMS_AREAS,
     "theory": THEORY_AREAS,
@@ -239,10 +257,10 @@ def resolve_area_spec(specs: list[str]) -> list[str]:
     result: list[str] = []
     for spec in specs:
         key = spec.strip().lower()
-        if key in _CATEGORY_ALIASES:
-            result.extend(_CATEGORY_ALIASES[key])
-        elif key in AREA_TITLES:
+        if key in AREA_TITLES:
             result.append(key)
+        elif key in _CATEGORY_ALIASES:
+            result.extend(_CATEGORY_ALIASES[key])
         elif key in _AREA_ALIASES:
             result.append(_AREA_ALIASES[key])
         else:
@@ -257,7 +275,7 @@ def resolve_area_spec(specs: list[str]) -> list[str]:
                 raise ValueError(
                     f"Unknown area: '{spec}'. "
                     f"Valid areas: {', '.join(sorted(AREA_TITLES.keys()))}. "
-                    f"Valid categories: ai, systems, theory, interdisciplinary, all."
+                    f"Valid categories: ai-all, systems, theory, interdisciplinary, all."
                 )
     # Deduplicate preserving order
     seen: set[str] = set()
@@ -267,3 +285,84 @@ def resolve_area_spec(specs: list[str]) -> list[str]:
             seen.add(a)
             deduped.append(a)
     return deduped
+
+
+# Venue aliases for user convenience (lowercase → venue slug)
+_VENUE_ALIASES: dict[str, str] = {
+    "neurips": "nips",
+    "s&p": "oakland",
+    "ieee s&p": "oakland",
+    "ieee sp": "oakland",
+    "usenix security": "usenixsec",
+    "usenix sec": "usenixsec",
+    "acm ccs": "ccs",
+    "sigmod": "sigmod",
+    "siggraph asia": "siggraph-asia",
+    "usenix atc": "usenixatc",
+}
+
+
+def resolve_venue_spec(
+    specs: list[str] | None,
+    areas: list[str] | None = None,
+) -> set[str] | None:
+    """Resolve user-provided venue specs into canonical venue slugs.
+
+    Args:
+        specs: List of venue slugs/aliases. None means use defaults for the
+               given areas. Special value "all" includes next-tier venues.
+        areas: If provided, restrict to venues belonging to these areas.
+
+    Returns:
+        Set of venue slugs to include, or None to use defaults.
+    """
+    if specs is None:
+        return None
+
+    result: set[str] = set()
+    for spec in specs:
+        key = spec.strip().lower()
+        if key == "all":
+            # Include all venues (including next-tier)
+            if areas:
+                result.update(v for v, a in VENUE_TO_AREA.items() if a in areas)
+            else:
+                result.update(VENUE_TO_AREA.keys())
+        elif key == "default":
+            if areas:
+                result.update(
+                    v for v in DEFAULT_VENUES if VENUE_TO_AREA.get(v) in areas
+                )
+            else:
+                result.update(DEFAULT_VENUES)
+        elif key == "next-tier":
+            if areas:
+                result.update(
+                    v for v in NEXT_TIER_VENUES if VENUE_TO_AREA.get(v) in areas
+                )
+            else:
+                result.update(NEXT_TIER_VENUES)
+        elif key in VENUE_TO_AREA:
+            result.add(key)
+        elif key in _VENUE_ALIASES:
+            result.add(_VENUE_ALIASES[key])
+        else:
+            raise ValueError(
+                f"Unknown venue: '{spec}'. "
+                f"Valid venues: {', '.join(sorted(VENUE_TO_AREA.keys()))}. "
+                f"Special values: 'all', 'default', 'next-tier'."
+            )
+    return result
+
+
+def get_area_venues(area: str, include_next_tier: bool = False) -> set[str]:
+    """Get venue slugs for a given area.
+
+    Args:
+        area: Area slug (e.g. "mlmining", "sec").
+        include_next_tier: If True, include next-tier venues.
+    """
+    all_venues = {v for v, a in VENUE_TO_AREA.items() if a == area}
+    if include_next_tier:
+        return all_venues
+    return all_venues - NEXT_TIER_VENUES

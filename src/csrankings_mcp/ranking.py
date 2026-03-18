@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from .config import DEFAULT_VENUES
 from .data import CSRankingsData
 
 
@@ -42,16 +43,24 @@ def rank_institutions(
     year_start: int = 2015,
     year_end: int = 2025,
     top_n: int = 25,
+    venues: set[str] | None = None,
 ) -> list[InstitutionRanking]:
     """Rank institutions by geometric mean of area-wise adjusted publication counts.
 
     Geometric mean formula (matching csrankings.org):
         score = ((sum_area1 + 1) * (sum_area2 + 1) * ... * (sum_areaN + 1)) ^ (1/N)
+
+    Args:
+        venues: Set of venue slugs to include. None means use default venues
+                (matching csrankings.org, excluding next-tier).
     """
     ai = data.author_info
-    # Filter by year and areas
+    # Determine which venues to include
+    active_venues = venues if venues is not None else DEFAULT_VENUES
+    # Filter by year, areas, and venues
     mask = (
         ai["area"].isin(areas)
+        & ai["venue"].isin(active_venues)
         & (ai["year"] >= year_start)
         & (ai["year"] <= year_end)
     )
@@ -64,42 +73,39 @@ def rank_institutions(
     inst_df = data.institutions
     if region:
         region_lower = region.lower()
-        # Support common region names
-        region_map = {
-            "us": "northamerica",
-            "usa": "northamerica",
-            "united states": "northamerica",
+        # Map user-friendly names to canonical values
+        friendly_map = {
+            "usa": "us",
+            "united states": "us",
+            "canada": "ca",
+            "uk": "gb",
             "north america": "northamerica",
-            "northamerica": "northamerica",
-            "europe": "europe",
-            "eu": "europe",
-            "asia": "asia",
-            "canada": "northamerica",  # Canada is in northamerica region
-            "uk": "europe",
-            "australasia": "australasia",
-            "southamerica": "southamerica",
             "south america": "southamerica",
-            "africa": "africa",
+            "eu": "europe",
         }
-        mapped_region = region_map.get(region_lower, region_lower)
+        canonical = friendly_map.get(region_lower, region_lower)
 
-        # Special case: US only (exclude Canada from northamerica)
-        if region_lower in ("us", "usa", "united states"):
+        # Continental regions → filter by region column
+        # Everything else → treat as country abbreviation (matches csrankings.org)
+        continental = {
+            "northamerica", "europe", "asia",
+            "australasia", "southamerica", "africa",
+        }
+        if canonical in ("world", "worldwide"):
+            pass  # no filtering
+        elif canonical in continental:
             valid_insts = set(
-                inst_df[
-                    (inst_df["region"].str.lower() == "northamerica")
-                    & (inst_df["countryabbrv"].str.lower() != "canada")
-                ]["institution"]
+                inst_df[inst_df["region"].str.lower() == canonical]["institution"]
             )
-        elif region_lower == "canada":
-            valid_insts = set(
-                inst_df[inst_df["countryabbrv"].str.lower() == "canada"]["institution"]
-            )
+            df = df[df["dept"].isin(valid_insts)]
         else:
+            # Country code: us, ca, cn, gb, de, etc.
             valid_insts = set(
-                inst_df[inst_df["region"].str.lower() == mapped_region]["institution"]
+                inst_df[inst_df["countryabbrv"].str.lower() == canonical][
+                    "institution"
+                ]
             )
-        df = df[df["dept"].isin(valid_insts)]
+            df = df[df["dept"].isin(valid_insts)]
 
     if df.empty:
         return []
@@ -153,11 +159,18 @@ def get_institution_faculty(
     areas: list[str] | None = None,
     year_start: int = 2015,
     year_end: int = 2025,
+    venues: set[str] | None = None,
 ) -> list[FacultyInfo]:
-    """Get faculty list for an institution with per-area publication counts."""
+    """Get faculty list for an institution with per-area publication counts.
+
+    Args:
+        venues: Set of venue slugs to include. None means use default venues.
+    """
     ai = data.author_info
+    active_venues = venues if venues is not None else DEFAULT_VENUES
     mask = (
         (ai["dept"] == institution)
+        & ai["venue"].isin(active_venues)
         & (ai["year"] >= year_start)
         & (ai["year"] <= year_end)
     )

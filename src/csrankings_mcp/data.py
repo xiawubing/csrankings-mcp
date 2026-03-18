@@ -67,8 +67,9 @@ def load_data() -> CSRankingsData:
         author_info["adjustedcount"], errors="coerce"
     ).fillna(0)
 
-    # Map venue slugs to parent area slugs
-    author_info["area"] = author_info["area"].map(
+    # Preserve original venue slug, then map to parent area slugs
+    author_info["venue"] = author_info["area"]
+    author_info["area"] = author_info["venue"].map(
         lambda v: VENUE_TO_AREA.get(v, v)
     )
 

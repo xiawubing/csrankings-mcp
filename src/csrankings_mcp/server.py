@@ -2,7 +2,7 @@
 
 from fastmcp import FastMCP
 
-from .config import AREA_TITLES, resolve_area_spec
+from .config import AREA_TITLES, VENUE_TO_AREA, resolve_area_spec, resolve_venue_spec
 from .data import get_data
 from .ranking import (
     get_institution_faculty,
@@ -28,33 +28,48 @@ def csrankings_rank(
     year_start: int = 2015,
     year_end: int = 2025,
     top_n: int = 25,
+    venues: list[str] | None = None,
 ) -> str:
     """Rank CS institutions by research area using geometric mean (matching csrankings.org).
 
     Args:
-        areas: Research areas to rank by. Accepts slugs (e.g. "mlmining", "sec"),
-               category names ("ai", "systems", "theory"), or human-readable names
+        areas: Research areas to rank by. Accepts slugs (e.g. "ai", "mlmining", "sec"),
+               category names ("ai-all", "systems", "theory"), or human-readable names
                ("machine learning", "security"). Multiple areas use geometric mean.
         region: Filter by region. Options: "us", "europe", "asia", "canada",
                 "northamerica", "australasia", "southamerica", "africa", or None for worldwide.
         year_start: Start year for publication window (inclusive).
         year_end: End year for publication window (inclusive).
         top_n: Number of top institutions to return.
+        venues: Filter by specific conference venues. Accepts venue slugs
+                (e.g. "icml", "nips", "ccs", "oakland"), aliases (e.g. "neurips",
+                "usenix security"), or special values: "all" (include next-tier venues),
+                "default" (csrankings.org defaults), "next-tier" (only next-tier venues).
+                When None (default), uses csrankings.org defaults which exclude next-tier
+                venues like KDD, NDSS, ASE, ISSTA, OOPSLA, etc.
 
     Returns:
         Markdown table with rank, institution, score, faculty count, region, country.
     """
     resolved = resolve_area_spec(areas)
+    resolved_venues = resolve_venue_spec(venues, resolved)
     data = get_data()
-    rankings = rank_institutions(data, resolved, region, year_start, year_end, top_n)
+    rankings = rank_institutions(
+        data, resolved, region, year_start, year_end, top_n, resolved_venues
+    )
 
     if not rankings:
         return f"No results for areas={areas}, region={region}, years={year_start}-{year_end}."
 
     area_names = ", ".join(AREA_TITLES.get(a, a) for a in resolved)
+    # Show which venues are active
+    if venues:
+        venue_note = f"Venues: {', '.join(venues)}"
+    else:
+        venue_note = "Venues: csrankings.org defaults"
     lines = [
         f"## CSRankings: {area_names}",
-        f"Region: {region or 'Worldwide'} | Years: {year_start}–{year_end}\n",
+        f"Region: {region or 'Worldwide'} | Years: {year_start}–{year_end} | {venue_note}\n",
         "| Rank | Institution | Score | Faculty | Region | Country |",
         "|------|------------|-------|---------|--------|---------|",
     ]
@@ -72,6 +87,7 @@ def csrankings_institution(
     areas: list[str] | None = None,
     year_start: int = 2015,
     year_end: int = 2025,
+    venues: list[str] | None = None,
 ) -> str:
     """Get faculty list for an institution with per-area publication counts and homepage URLs.
 
@@ -80,13 +96,18 @@ def csrankings_institution(
         areas: Filter by research areas (same format as csrankings_rank). None for all areas.
         year_start: Start year (inclusive).
         year_end: End year (inclusive).
+        venues: Filter by specific venues (same format as csrankings_rank).
+                None uses csrankings.org defaults.
 
     Returns:
         Markdown table with faculty name, homepage URL, Google Scholar ID, and area publication counts.
     """
     resolved = resolve_area_spec(areas) if areas else None
+    resolved_venues = resolve_venue_spec(venues, resolved)
     data = get_data()
-    faculty = get_institution_faculty(data, institution, resolved, year_start, year_end)
+    faculty = get_institution_faculty(
+        data, institution, resolved, year_start, year_end, resolved_venues
+    )
 
     if not faculty:
         return f"No faculty found for '{institution}'. Use csrankings_search to verify the institution name."
@@ -95,6 +116,7 @@ def csrankings_institution(
         f"## Faculty at {institution}",
         f"Years: {year_start}–{year_end}"
         + (f" | Areas: {', '.join(areas)}" if areas else "")
+        + (f" | Venues: {', '.join(venues)}" if venues else "")
         + "\n",
         "| Name | Homepage | Scholar ID | Areas (adjustedcount) |",
         "|------|----------|------------|----------------------|",

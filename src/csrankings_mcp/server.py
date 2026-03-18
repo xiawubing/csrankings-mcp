@@ -25,8 +25,8 @@ mcp = FastMCP(
 def csrankings_rank(
     areas: list[str],
     region: str | None = None,
-    year_start: int = 2015,
-    year_end: int = 2025,
+    year_start: int = 2016,
+    year_end: int = 2026,
     top_n: int = 25,
     venues: list[str] | None = None,
 ) -> str:
@@ -85,8 +85,8 @@ def csrankings_rank(
 def csrankings_institution(
     institution: str,
     areas: list[str] | None = None,
-    year_start: int = 2015,
-    year_end: int = 2025,
+    year_start: int = 2016,
+    year_end: int = 2026,
     venues: list[str] | None = None,
 ) -> str:
     """Get faculty list for an institution with per-area publication counts and homepage URLs.

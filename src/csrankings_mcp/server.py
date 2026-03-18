@@ -118,17 +118,21 @@ def csrankings_institution(
         + (f" | Areas: {', '.join(areas)}" if areas else "")
         + (f" | Venues: {', '.join(venues)}" if venues else "")
         + "\n",
-        "| Name | Homepage | Scholar ID | Areas (adjustedcount) |",
-        "|------|----------|------------|----------------------|",
+        "| Name | Homepage | Scholar ID | # Pubs | Adj. # | Areas (adj. count) |",
+        "|------|----------|------------|--------|--------|-------------------|",
     ]
     for f in faculty:
+        adj_total = sum(f.areas.values())
         area_str = ", ".join(f"{a}: {c:.1f}" for a, c in f.areas.items())
         scholar_link = (
             f"[Profile](https://scholar.google.com/citations?user={f.scholar_id})"
             if f.scholar_id
             else ""
         )
-        lines.append(f"| {f.name} | {f.homepage} | {scholar_link} | {area_str} |")
+        lines.append(
+            f"| {f.name} | {f.homepage} | {scholar_link} "
+            f"| {f.pub_count} | {adj_total:.1f} | {area_str} |"
+        )
     return "\n".join(lines)
 
 

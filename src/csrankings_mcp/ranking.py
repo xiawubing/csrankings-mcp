@@ -24,6 +24,7 @@ class FacultyInfo:
     name: str
     homepage: str
     scholar_id: str
+    pub_count: int  # total raw publication count (# Pubs)
     areas: dict[str, float]  # area slug → total adjustedcount
 
 
@@ -184,6 +185,9 @@ def get_institution_faculty(
     # Sum adjustedcount per faculty per area
     grouped = df.groupby(["name", "area"])["adjustedcount"].sum()
 
+    # Sum raw publication count per faculty
+    pub_counts = df.groupby("name")["count"].sum()
+
     # Build faculty info
     cs = data.csrankings
     faculty_lookup = {}
@@ -202,12 +206,13 @@ def get_institution_faculty(
                 name=name,
                 homepage=homepage,
                 scholar_id=scholar_id,
+                pub_count=round(float(pub_counts.get(name, 0))),
                 areas=dict(sorted(area_counts.items(), key=lambda x: -x[1])),
             )
         )
 
-    # Sort by total publication count descending
-    results.sort(key=lambda f: -sum(f.areas.values()))
+    # Sort by raw publication count descending (matching csrankings.org)
+    results.sort(key=lambda f: (-f.pub_count, -sum(f.areas.values())))
     return results
 
 
